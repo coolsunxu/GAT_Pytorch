@@ -43,7 +43,7 @@ class BatchMultiHeadGraphAttention(nn.Module): # 多头图注意力模型
 		if self.add_self_loop: # 是否添加自环 
 			self.remove_self_loops(edge_index)
 			self.add_self_loops(edge_index, bs)
-		self.adj = torch.zeros(self.n_head,bs,bs) # [head,bs,bs] 邻接矩阵
+		self.adj = torch.zeros(self.n_head,bs,bs).to(h) # [head,bs,bs] 邻接矩阵
 		
 		h_prime = torch.matmul(h, self.w) # [head,bs,fout]
 		
