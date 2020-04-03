@@ -12,7 +12,8 @@ class BatchMultiHeadGraphAttention(nn.Module): # 多头图注意力模型
 		self.add_self_loop = True # 为防止没有邻居结点出现的情况
 		self.w = nn.Parameter(torch.Tensor(self.n_head, self.f_in, self.f_out)) # 自定义参数 权重
 		
-		self.fc = nn.Linear(self.f_out*2,1) # 求分数
+		#self.fc = nn.Linear(self.f_out*2,1) # 求分数,可能要修改 多个头参数
+		self.fc = nn.Parameter(torch.Tensor(self.n_head, self.f_out*2,1)) # 自定义参数 att
 		self.leaky_relu = nn.LeakyReLU(negative_slope=0.2) # 激活函数
 		self.softmax = nn.Softmax(dim=-1) # 归一层
 		self.dropout = nn.Dropout(self.attn_dropout) # Dropout 层
@@ -24,6 +25,7 @@ class BatchMultiHeadGraphAttention(nn.Module): # 多头图注意力模型
 
 		# 初始化自定义参数
 		nn.init.xavier_uniform_(self.w, gain=1.414)
+		nn.init.xavier_uniform_(self.fc, gain=1.414)
 	
 	def remove_self_loops(self,edge_index): # 移除自环
 		row, col = edge_index
@@ -54,7 +56,7 @@ class BatchMultiHeadGraphAttention(nn.Module): # 多头图注意力模型
 			neighbors_node = h_prime[:,neighbors,:] # [head,cbs,fout]
 			total_node = torch.cat((curr_node,neighbors_node),2) # [head,cbs,fout*2]
 			
-			att_node = self.leaky_relu(self.fc(total_node.reshape(-1,self.f_out*2)))
+			att_node = self.leaky_relu(torch.matmul(total_node,self.fc))
 			att_node = self.softmax(att_node.reshape(heads,n_neighbors)) # [head,cbs]
 			att_node = self.dropout(att_node)
 			for k,v in enumerate(neighbors):
@@ -68,16 +70,26 @@ class BatchMultiHeadGraphAttention(nn.Module): # 多头图注意力模型
 		else:
 			return output
 
-"""
-heads = 1
-bs = 4
-fin = 8
-fout = 16
-
-a = torch.LongTensor([[0,1,2,3,0,1,2,3,0,1,2,3],
-				  [1,0,1,2,2,2,3,0,3,3,0,1]])
+# 生成领接矩阵
+def Get_Adj(bs):
+	import itertools
+	a = [[],[]]
+	list_indices = torch.arange(0, bs) # 行人列表
+	for i, j in itertools.permutations(list_indices, 2): # 行人-行人 两两全排列
+		a[0].append(i)
+		a[1].append(j)
+	return torch.LongTensor(a)
+	
+import time
+heads = 12
+bs = 512
+fin = 256
+fout = 128
+a = Get_Adj(bs)
 h = torch.randn(bs,fin)
 model = BatchMultiHeadGraphAttention(n_head=heads, f_in=fin, f_out=fout, attn_dropout=0.5)
+start_time = time.time()  #开始时间
 out = model(h,a)
+end_time = time.time()   #结束时间
+print("time:%d"  % (end_time-start_time))
 print(out.shape)
-"""
