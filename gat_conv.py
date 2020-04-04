@@ -50,14 +50,14 @@ class BatchMultiHeadGraphAttention(nn.Module): # 多头图注意力模型
 		h_prime = torch.matmul(h, self.w) # [head,bs,fout]
 		
 		for i in range(h_prime.shape[1]): # for each node
-			neighbors = edge_index[1][(edge_index[0,:]==i).nonzero().squeeze()] # neighbors
+			neighbors = edge_index[1][(edge_index[0,:]==i).nonzero().squeeze(0)] # neighbors
 			n_neighbors = neighbors.shape[0] # number of this node's neighbors
 			curr_node = h_prime[:,i,:].unsqueeze(1).repeat(1, n_neighbors, 1) # [head,cbs,fout]
 			neighbors_node = h_prime[:,neighbors,:] # [head,cbs,fout]
 			total_node = torch.cat((curr_node,neighbors_node),2) # [head,cbs,fout*2]
 			
 			att_node = self.leaky_relu(torch.matmul(total_node,self.fc))
-			att_node = self.softmax(att_node.reshape(heads,n_neighbors)) # [head,cbs]
+			att_node = self.softmax(att_node.reshape(self.n_head,n_neighbors)) # [head,cbs]
 			att_node = self.dropout(att_node)
 			for k,v in enumerate(neighbors):
 				self.adj[:,i,v] = att_node[:,k]
